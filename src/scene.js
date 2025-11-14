@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { createStandardMaterial, loadGltf, textureloader } from './tools.js';
+import { UnitTypes } from './unitTypes.js';
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 class Scene {
@@ -144,7 +145,155 @@ class Scene {
             this.scene.remove(obj)
         })        
     }
-    
+
+    addBases() {
+        // Base du joueur
+        const playerBaseGeometry = new THREE.BoxGeometry(10, 10, 10);
+        const playerBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+        const playerBase = new THREE.Mesh(playerBaseGeometry, playerBaseMaterial);
+        playerBase.position.set(-10.71, 5, 63.65); // un peu à gauche
+        playerBase.castShadow = true;
+        playerBase.receiveShadow = true;
+        playerBase.name = "PlayerBase";
+        this.scene.add(playerBase);
+
+        // Base ennemie
+        const enemyBaseGeometry = new THREE.BoxGeometry(10, 10, 10);
+        const enemyBaseMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const enemyBase = new THREE.Mesh(enemyBaseGeometry, enemyBaseMaterial);
+        enemyBase.position.set(81.35, 5, -23.63); // un peu à droite
+        enemyBase.castShadow = true;
+        enemyBase.receiveShadow = true;
+        enemyBase.name = "EnemyBase";
+        this.scene.add(enemyBase);
+
+        // On peut les garder pour les manipuler plus tard
+        this.playerBase = playerBase;
+        this.enemyBase = enemyBase;
+    }
+
+    createEnemy(type = 'basic') {
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        const material = new THREE.MeshStandardMaterial({ color: 0xaa0000 });
+        const enemy = new THREE.Mesh(geometry, material);
+        enemy.castShadow = true;
+        enemy.receiveShadow = true;
+
+        // Position de spawn
+        enemy.position.copy(this.enemyBase.position.clone().add(new THREE.Vector3(-6, 0, 0)));
+
+        // Données pour le mouvement et PV
+        enemy.userData = {
+            type,
+            speed: 0.3 + Math.random() * 0.2,
+            hp: 10,
+            maxHp: 10,
+            damage: 2,
+            isEnemy: true,
+            atBase: false,          // l’ennemi a atteint la base
+            attackCooldown: 1,      // intervalle en secondes entre attaques
+            lastAttackTime: 0       // timestamp de la dernière attaque
+        };
+
+        // --- Barre de pv ---
+        // Cadre fixe
+        const frameGeometry = new THREE.PlaneGeometry(3.2, 0.9); // un peu plus grand
+        const frameMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const hpFrame = new THREE.Mesh(frameGeometry, frameMaterial);
+        hpFrame.position.set(0, 2, 0);
+        enemy.add(hpFrame);
+
+        // Barre interne
+        const barGeometry = new THREE.PlaneGeometry(3, 0.7);
+        const barMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const hpBar = new THREE.Mesh(barGeometry, barMaterial);
+        hpBar.position.set(0, 2, 0.01); // légèrement devant le cadre
+        enemy.add(hpBar);
+
+        enemy.userData.hpBar = hpBar;
+        enemy.userData.hpBarMaxWidth = 3; // pour savoir la largeur d'origine
+
+        // Ajouter à la liste des ennemis et à la scène
+        if (!this.enemies) this.enemies = [];
+        this.enemies.push(enemy);
+        this.scene.add(enemy);
+    }
+
+    createUnit(type = 'basic', isEnemy = false) {
+        const config = UnitTypes[type];
+        if (!config) throw new Error(`Type d’unité inconnu : ${type}`);
+
+        let geometry;
+        switch(type) {
+            case 'basic':
+                geometry = new THREE.BoxGeometry(2, 2, 2);
+                break;
+            case 'ranged':
+                geometry = new THREE.CylinderGeometry(1, 1, 2, 16);
+                break;
+            case 'heavy':
+                geometry = new THREE.BoxGeometry(3, 3, 3);
+                break;
+            default:
+                geometry = new THREE.BoxGeometry(2, 2, 2);
+        }
+
+        const color = isEnemy ? 0xff0000 : config.color;
+        const material = new THREE.MeshStandardMaterial({ color });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        // --- UserData et barre de PV ---
+        mesh.userData = {
+            type,
+            speed: config.speed + Math.random() * 0.2,
+            isEnemy: isEnemy,
+            hp: config.hp,
+            maxHp: config.maxHp,
+            damage: config.damage,
+            attackCooldown: config.attackCooldown,
+            range: config.range || 1
+        };
+
+        // Barre de PV
+        const frameGeometry = new THREE.PlaneGeometry(3.2, 0.9);
+        const frameMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const hpFrame = new THREE.Mesh(frameGeometry, frameMaterial);
+        hpFrame.position.set(0, 2, 0);
+        mesh.add(hpFrame);
+
+        const barGeometry = new THREE.PlaneGeometry(3, 0.7);
+        const barMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const hpBar = new THREE.Mesh(barGeometry, barMaterial);
+        hpBar.position.set(0, 2, 0.01);
+        mesh.add(hpBar);
+
+        mesh.userData.hpBar = hpBar;
+        mesh.userData.hpBarMaxWidth = 3;
+
+        this.scene.add(mesh);
+        return { mesh };
+    }
+
+
+
+    updateEnemies(delta) {
+        if (!this.enemies || this.enemies.length === 0) return;
+
+        const target = this.playerBase.position.clone();
+
+        for (const enemy of this.enemies) {
+            const dir = target.clone().sub(enemy.position).normalize();
+            enemy.position.addScaledVector(dir, enemy.userData.speed * delta * 60);
+
+            // Collision simple (proche de la base)
+            if (enemy.position.distanceTo(target) < 6) {
+                // TODO: infliger des dégâts à la base plus tard
+                console.log("💥 Un ennemi attaque la base !");
+            }
+        }
+    }
 }
 
 export { Scene }

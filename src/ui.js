@@ -1,5 +1,6 @@
 import GUI from 'lil-gui'
 import { ColorGUIHelper } from './tools'
+import { UnitTypes } from './unitTypes.js';
 
 export class UI {
 
@@ -70,4 +71,35 @@ export class UI {
             this.gui = null
         }
     }
+
+    addGameplayUI(gameManager) {
+        const folder = this.gui.addFolder('Gameplay');
+
+        folder.add({ buyBasic: () => {
+            const type = 'basic'; // déclaration à l'intérieur
+            if (gameManager.spendMoney(UnitTypes[type].cost)) {
+                gameManager.spawnUnit(type, false);
+            } else console.warn("Pas assez d'argent !");
+        }}, 'buyBasic').name(`Acheter un soldat (${UnitTypes['basic'].cost}$)`);
+
+        folder.add({ buyRanged: () => {
+            const type = 'ranged';
+            if (gameManager.spendMoney(UnitTypes[type].cost)) {
+                gameManager.spawnUnit(type, false);
+            } else console.warn("Pas assez d'argent !");
+        }}, 'buyRanged').name(`Acheter un tireur (${UnitTypes['ranged'].cost}$)`);
+
+        folder.add({ buyHeavy: () => {
+            const type = 'heavy';
+            if (gameManager.spendMoney(UnitTypes[type].cost)) {
+                gameManager.spawnUnit(type, false);
+            } else console.warn("Pas assez d'argent !");
+        }}, 'buyHeavy').name(`Acheter un lourd (${UnitTypes['heavy'].cost}$)`);
+
+        // Compteur d'argent
+        folder.add(gameManager, 'money').name("Argent").listen();
+    }
+
+
+
 }

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { Scene } from './scene'
 import { Camera } from './camera'
 import { UI } from './ui'
+import { GameManager } from './gameManager.js';
 
 // wifi-poly-09
 // Z7ngicz_
@@ -43,7 +44,7 @@ export class Application {
         )
         this.ui.addSkyboxUI(this.skyboxFiles, this.skyboxParams, this.scene.addSkybox.bind(this.scene))
         this.ui.addGroundUI(this.groundTextures, this.groundParams, this.scene.addGround.bind(this.scene))
-        this.ui.addSunUI(this.scene.sun)
+        // this.ui.addSunUI(this.scene.sun)
         this.ui.addSelectionUI()
 
         this.selectedObject = null
@@ -98,10 +99,17 @@ export class Application {
             }
         });
 
+        this.scene.addBases();
+        this.gameManager = new GameManager(this.scene, this.ui);
+        this.ui.addGameplayUI(this.gameManager);
+
+        this.clock = new THREE.Clock();
         this.renderer.setAnimationLoop(this.render.bind(this))
     }
 
     render() {
+        const delta = this.clock.getDelta();
+        this.gameManager.updateUnits(delta);
         this.renderer.render(this.scene.scene, this.camera.camera)
     }
 
